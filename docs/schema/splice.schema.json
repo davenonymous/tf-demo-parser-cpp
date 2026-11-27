@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo splice",
+  "description": "One JSON object: what the pose splice did and the size of the demo written.",
+  "type": "object",
+  "properties": {
+    "poses_spliced": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "poses_skipped": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "poses_unplaceable": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "handbacks": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "poses_spliced",
+    "poses_skipped",
+    "poses_unplaceable",
+    "handbacks",
+    "bytes"
+  ],
+  "additionalProperties": false
+}

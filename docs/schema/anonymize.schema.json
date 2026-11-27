@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo anonymize",
+  "description": "One JSON object: the players as the anonymized demo shows them, what was changed and the size of the demo written.",
+  "type": "object",
+  "properties": {
+    "players": {
+      "description": "By fake account id.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^(RED|BLU|SPEC) [1-9][0-9]*$"
+          },
+          "account_id": {
+            "type": "integer",
+            "minimum": 1000000001
+          },
+          "steam_id": {
+            "type": "string",
+            "pattern": "^\\[U:1:[0-9]+\\]$"
+          }
+        },
+        "required": ["name", "account_id", "steam_id"],
+        "additionalProperties": false
+      }
+    },
+    "other_accounts": {
+      "description": "Accounts in entity values that no player had; they got fake ids as well.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "frames_changed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "messages_changed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "voice_messages_dropped": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "entity_values_changed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "players",
+    "other_accounts",
+    "frames_changed",
+    "messages_changed",
+    "voice_messages_dropped",
+    "entity_values_changed",
+    "bytes"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,2 @@
+# The source tarball of a release (git archive) leaves out the test demo.
+tests/data/*.dem export-ignore

@@ -1,0 +1,10 @@
+prefix=@TFDEMO_PC_PREFIX@
+libdir=@TFDEMO_PC_LIBDIR@
+includedir=@TFDEMO_PC_INCLUDEDIR@
+
+Name: tfdemo
+Description: @PROJECT_DESCRIPTION@ (C API)
+URL: @PROJECT_HOMEPAGE_URL@
+Version: @PROJECT_VERSION@
+Cflags: -I${includedir}
+Libs: -L${libdir} -ltfdemo

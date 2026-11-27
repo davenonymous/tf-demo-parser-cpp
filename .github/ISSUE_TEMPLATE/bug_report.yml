@@ -1,0 +1,28 @@
+name: Bug report
+description: A demo that is read or written wrongly, a crash or a build problem.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you did, what you expected and what happened instead (error messages, output).
+    validations:
+      required: true
+  - type: input
+    id: demo
+    attributes:
+      label: Demo
+      description: Where the demo can be downloaded (a demos.tf link), or none. Anonymize it with `tfdemo anonymize` first if it must stay private.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The release or commit, and how you use it (C++, C API, tool, vcpkg, Conan).
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: Operating system, architecture and compiler.

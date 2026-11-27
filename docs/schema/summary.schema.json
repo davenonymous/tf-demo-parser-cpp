@@ -1,0 +1,508 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo summary",
+  "description": "One JSON object: chat, users with their scores, deaths, direct hits, rounds and pauses. Without entities (--no-entities) the scores are zero and direct_hits is empty.",
+  "type": "object",
+  "properties": {
+    "header": {
+      "$ref": "#/$defs/header"
+    },
+    "chat": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tick": {
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "chat",
+              "plain",
+              "notice"
+            ]
+          },
+          "token": {
+            "type": "string"
+          },
+          "client": {
+            "type": "integer"
+          },
+          "from": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tick",
+          "kind",
+          "token",
+          "client",
+          "from",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "users": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^-?[0-9]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/user"
+      },
+      "description": "By user id."
+    },
+    "deaths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tick": {
+            "type": "integer"
+          },
+          "victim": {
+            "type": "integer"
+          },
+          "attacker": {
+            "type": "integer"
+          },
+          "assister": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "weapon": {
+            "type": "string"
+          },
+          "custom_kill": {
+            "type": "integer"
+          },
+          "feign_death": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tick",
+          "victim",
+          "attacker",
+          "assister",
+          "weapon",
+          "custom_kill",
+          "feign_death"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "direct_hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tick": {
+            "type": "integer"
+          },
+          "victim": {
+            "type": "integer"
+          },
+          "attacker": {
+            "type": "integer"
+          },
+          "victim_user_id": {
+            "type": "integer"
+          },
+          "attacker_user_id": {
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "rocket",
+              "sentry_rocket",
+              "pipe",
+              "sticky",
+              "loose_cannon",
+              "flare",
+              "arrow",
+              "healing_bolt",
+              "jar",
+              "cleaver",
+              "ball",
+              "other"
+            ]
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "damage": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tick",
+          "victim",
+          "attacker",
+          "victim_user_id",
+          "attacker_user_id",
+          "kind",
+          "critical",
+          "damage"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rounds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "end_tick": {
+            "type": "integer"
+          },
+          "winner": {
+            "$ref": "#/$defs/team"
+          },
+          "win_reason": {
+            "type": "integer"
+          },
+          "length": {
+            "$ref": "#/$defs/float"
+          }
+        },
+        "required": [
+          "end_tick",
+          "winner",
+          "win_reason",
+          "length"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pauses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "integer"
+          },
+          "to": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "start_tick": {
+      "type": "integer"
+    },
+    "tick_interval": {
+      "$ref": "#/$defs/float"
+    }
+  },
+  "required": [
+    "header",
+    "chat",
+    "users",
+    "deaths",
+    "direct_hits",
+    "rounds",
+    "pauses",
+    "start_tick",
+    "tick_interval"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "float": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "A float; null when it is not finite."
+    },
+    "vector": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/float"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "team": {
+      "enum": [
+        "unassigned",
+        "spectator",
+        "red",
+        "blue"
+      ]
+    },
+    "header": {
+      "type": "object",
+      "properties": {
+        "stamp": {
+          "type": "string"
+        },
+        "demo_protocol": {
+          "type": "integer"
+        },
+        "network_protocol": {
+          "type": "integer"
+        },
+        "server": {
+          "type": "string"
+        },
+        "client": {
+          "type": "string"
+        },
+        "map": {
+          "type": "string"
+        },
+        "game": {
+          "type": "string"
+        },
+        "duration": {
+          "$ref": "#/$defs/float"
+        },
+        "ticks": {
+          "type": "integer"
+        },
+        "frames": {
+          "type": "integer"
+        },
+        "signon_length": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stamp",
+        "demo_protocol",
+        "network_protocol",
+        "server",
+        "client",
+        "map",
+        "game",
+        "duration",
+        "ticks",
+        "frames",
+        "signon_length"
+      ],
+      "additionalProperties": false
+    },
+    "user": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "integer"
+        },
+        "entity_index": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "steam_id": {
+          "type": "string"
+        },
+        "bot": {
+          "type": "boolean"
+        },
+        "team": {
+          "$ref": "#/$defs/team"
+        },
+        "classes": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "unknown",
+              "scout",
+              "sniper",
+              "soldier",
+              "demoman",
+              "medic",
+              "heavy",
+              "pyro",
+              "spy",
+              "engineer"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "How often the user spawned as each class."
+        },
+        "scores": {
+          "$ref": "#/$defs/player_scores"
+        },
+        "match_scores": {
+          "$ref": "#/$defs/score_data"
+        },
+        "round_scores": {
+          "$ref": "#/$defs/score_data"
+        },
+        "scoreboard_sent": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "user_id",
+        "entity_index",
+        "name",
+        "steam_id",
+        "bot",
+        "team",
+        "classes",
+        "scores",
+        "match_scores",
+        "round_scores",
+        "scoreboard_sent"
+      ],
+      "additionalProperties": false
+    },
+    "player_scores": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "integer"
+        },
+        "kills": {
+          "type": "integer"
+        },
+        "deaths": {
+          "type": "integer"
+        },
+        "damage": {
+          "type": "integer"
+        },
+        "damage_assist": {
+          "type": "integer"
+        },
+        "healing": {
+          "type": "integer"
+        },
+        "healing_assist": {
+          "type": "integer"
+        },
+        "bonus_points": {
+          "type": "integer"
+        },
+        "damage_blocked": {
+          "type": "integer"
+        },
+        "support": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "points",
+        "kills",
+        "deaths",
+        "damage",
+        "damage_assist",
+        "healing",
+        "healing_assist",
+        "bonus_points",
+        "damage_blocked",
+        "support"
+      ],
+      "additionalProperties": false,
+      "description": "The match values of the player resource; support is damage_assist plus healing_assist."
+    },
+    "score_data": {
+      "type": "object",
+      "properties": {
+        "captures": {
+          "type": "integer"
+        },
+        "defenses": {
+          "type": "integer"
+        },
+        "kills": {
+          "type": "integer"
+        },
+        "deaths": {
+          "type": "integer"
+        },
+        "suicides": {
+          "type": "integer"
+        },
+        "dominations": {
+          "type": "integer"
+        },
+        "revenges": {
+          "type": "integer"
+        },
+        "buildings_built": {
+          "type": "integer"
+        },
+        "buildings_destroyed": {
+          "type": "integer"
+        },
+        "headshots": {
+          "type": "integer"
+        },
+        "backstabs": {
+          "type": "integer"
+        },
+        "healing": {
+          "type": "integer"
+        },
+        "ubercharges": {
+          "type": "integer"
+        },
+        "teleports": {
+          "type": "integer"
+        },
+        "damage": {
+          "type": "integer"
+        },
+        "crits": {
+          "type": "integer"
+        },
+        "resupplies": {
+          "type": "integer"
+        },
+        "assists": {
+          "type": "integer"
+        },
+        "bonus_points": {
+          "type": "integer"
+        },
+        "points": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "captures",
+        "defenses",
+        "kills",
+        "deaths",
+        "suicides",
+        "dominations",
+        "revenges",
+        "buildings_built",
+        "buildings_destroyed",
+        "headshots",
+        "backstabs",
+        "healing",
+        "ubercharges",
+        "teleports",
+        "damage",
+        "crits",
+        "resupplies",
+        "assists",
+        "bonus_points",
+        "points"
+      ],
+      "additionalProperties": false,
+      "description": "The scoreboard values of DT_TFPlayerScoringDataExclusive."
+    }
+  }
+}

@@ -1,0 +1,16 @@
+name: Feature request
+description: Something the library or the tool should read, write or tell.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you need
+      description: What you want to do with a demo and what is missing for it.
+    validations:
+      required: true
+  - type: textarea
+    id: engine
+    attributes:
+      label: How the engine does it
+      description: If you know it, where the engine or game reads or writes it (file and function).

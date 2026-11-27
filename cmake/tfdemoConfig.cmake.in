@@ -1,0 +1,9 @@
+# Copyright 2026 davenonymous
+# SPDX-License-Identifier: MIT
+#
+# find_package(tfdemo): the targets tfdemo::tfdemo (the C++ library) and,
+# when it was built, tfdemo::tfdemo_c (the C API).
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/tfdemoTargets.cmake")
+check_required_components(tfdemo)

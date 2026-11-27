@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo classes",
+  "description": "One JSON array: the server classes with their flattened properties.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "name": {
+        "type": "string"
+      },
+      "table": {
+        "type": "string"
+      },
+      "props": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "int",
+                "float",
+                "vector",
+                "vectorxy",
+                "string",
+                "array",
+                "datatable"
+              ]
+            },
+            "flags": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bits": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "table",
+            "name",
+            "type",
+            "flags",
+            "bits"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "table",
+      "props"
+    ],
+    "additionalProperties": false
+  }
+}

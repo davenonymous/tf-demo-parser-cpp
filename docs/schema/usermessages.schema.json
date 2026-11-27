@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo usermessages",
+  "description": "One line of the JSON lines output: a user message, with SayText2 and TextMsg decoded, the data of an undecoded message in hex and only \"decoded\" for the others.",
+  "type": "object",
+  "properties": {
+    "tick": {
+      "type": "integer"
+    },
+    "type": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "tick",
+    "type",
+    "name"
+  ],
+  "oneOf": [
+    {
+      "properties": {
+        "client": {
+          "type": "integer"
+        },
+        "chat": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "client",
+        "chat",
+        "message",
+        "params"
+      ]
+    },
+    {
+      "properties": {
+        "destination": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 4,
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "destination",
+        "message",
+        "params"
+      ]
+    },
+    {
+      "properties": {
+        "bits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{2})*$"
+        }
+      },
+      "required": [
+        "bits",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "decoded": {
+          "const": true
+        }
+      },
+      "required": [
+        "decoded"
+      ]
+    }
+  ],
+  "unevaluatedProperties": false
+}

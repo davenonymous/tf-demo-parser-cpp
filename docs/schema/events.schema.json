@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo events",
+  "description": "One line of the JSON lines output: a game event.",
+  "type": "object",
+  "properties": {
+    "tick": {
+      "type": "integer"
+    },
+    "server_tick": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "values": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      },
+      "description": "By key name; a float that is not finite is null."
+    }
+  },
+  "required": [
+    "tick",
+    "server_tick",
+    "name",
+    "values"
+  ],
+  "additionalProperties": false
+}

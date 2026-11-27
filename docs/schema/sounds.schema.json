@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo sounds",
+  "description": "One line of the JSON lines output: a sound.",
+  "type": "object",
+  "properties": {
+    "tick": {
+      "type": "integer"
+    },
+    "entity": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "flags": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "channel": {
+      "type": "integer"
+    },
+    "volume": {
+      "$ref": "#/$defs/float"
+    },
+    "level": {
+      "type": "integer"
+    },
+    "pitch": {
+      "type": "integer"
+    },
+    "delay": {
+      "$ref": "#/$defs/float"
+    },
+    "origin": {
+      "$ref": "#/$defs/vector"
+    }
+  },
+  "required": [
+    "tick",
+    "entity",
+    "name",
+    "flags",
+    "channel",
+    "volume",
+    "level",
+    "pitch",
+    "delay",
+    "origin"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "float": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "A float; null when it is not finite."
+    },
+    "vector": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/float"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    }
+  }
+}

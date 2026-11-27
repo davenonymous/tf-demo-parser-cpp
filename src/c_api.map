@@ -1,0 +1,8 @@
+/* Copyright 2026 davenonymous
+ * SPDX-License-Identifier: MIT
+ *
+ * The symbols libtfdemo.so exports: the C API only. */
+{
+  global: tfdemo_*;
+  local: *;
+};

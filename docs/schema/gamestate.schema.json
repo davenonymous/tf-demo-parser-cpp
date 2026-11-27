@@ -1,0 +1,392 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo gamestate",
+  "description": "One JSON object: players, buildings, projectiles, control points and carts at the first frame at or after a demo tick.",
+  "type": "object",
+  "properties": {
+    "tick": {
+      "type": "integer"
+    },
+    "server_tick": {
+      "type": "integer"
+    },
+    "world_min": {
+      "$ref": "#/$defs/vector"
+    },
+    "world_max": {
+      "$ref": "#/$defs/vector"
+    },
+    "players": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/player"
+      }
+    },
+    "buildings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/building"
+      }
+    },
+    "projectiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/projectile"
+      }
+    },
+    "control_points": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/control_point"
+      }
+    },
+    "carts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cart"
+      }
+    }
+  },
+  "required": [
+    "tick",
+    "server_tick",
+    "world_min",
+    "world_max",
+    "players",
+    "buildings",
+    "projectiles",
+    "control_points",
+    "carts"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "float": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "A float; null when it is not finite."
+    },
+    "vector": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/float"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "team": {
+      "enum": [
+        "unassigned",
+        "spectator",
+        "red",
+        "blue"
+      ]
+    },
+    "player": {
+      "type": "object",
+      "properties": {
+        "entity": {
+          "type": "integer"
+        },
+        "user_id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "steam_id": {
+          "type": "string"
+        },
+        "team": {
+          "$ref": "#/$defs/team"
+        },
+        "class": {
+          "enum": [
+            "unknown",
+            "scout",
+            "sniper",
+            "soldier",
+            "demoman",
+            "medic",
+            "heavy",
+            "pyro",
+            "spy",
+            "engineer"
+          ]
+        },
+        "alive": {
+          "type": "boolean"
+        },
+        "in_pvs": {
+          "type": "boolean"
+        },
+        "health": {
+          "type": "integer"
+        },
+        "max_health": {
+          "type": "integer"
+        },
+        "origin": {
+          "$ref": "#/$defs/vector"
+        },
+        "pitch": {
+          "$ref": "#/$defs/float"
+        },
+        "yaw": {
+          "$ref": "#/$defs/float"
+        },
+        "ubercharge": {
+          "$ref": "#/$defs/float"
+        },
+        "cloak": {
+          "$ref": "#/$defs/float"
+        },
+        "ping": {
+          "type": "integer"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "deaths": {
+          "type": "integer"
+        },
+        "damage": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entity",
+        "user_id",
+        "name",
+        "steam_id",
+        "team",
+        "class",
+        "alive",
+        "in_pvs",
+        "health",
+        "max_health",
+        "origin",
+        "pitch",
+        "yaw",
+        "ubercharge",
+        "cloak",
+        "ping",
+        "score",
+        "deaths",
+        "damage"
+      ],
+      "additionalProperties": false
+    },
+    "building": {
+      "type": "object",
+      "properties": {
+        "entity": {
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "sentry",
+            "dispenser",
+            "teleporter_entrance",
+            "teleporter_exit"
+          ]
+        },
+        "team": {
+          "$ref": "#/$defs/team"
+        },
+        "builder": {
+          "type": "integer"
+        },
+        "level": {
+          "type": "integer"
+        },
+        "health": {
+          "type": "integer"
+        },
+        "max_health": {
+          "type": "integer"
+        },
+        "origin": {
+          "$ref": "#/$defs/vector"
+        },
+        "yaw": {
+          "$ref": "#/$defs/float"
+        },
+        "under_construction": {
+          "type": "boolean"
+        },
+        "construction": {
+          "$ref": "#/$defs/float"
+        },
+        "sapped": {
+          "type": "boolean"
+        },
+        "mini": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "entity",
+        "kind",
+        "team",
+        "builder",
+        "level",
+        "health",
+        "max_health",
+        "origin",
+        "yaw",
+        "under_construction",
+        "construction",
+        "sapped",
+        "mini"
+      ],
+      "additionalProperties": false
+    },
+    "projectile": {
+      "type": "object",
+      "properties": {
+        "entity": {
+          "type": "integer"
+        },
+        "class": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "rocket",
+            "sentry_rocket",
+            "pipe",
+            "sticky",
+            "loose_cannon",
+            "flare",
+            "arrow",
+            "healing_bolt",
+            "jar",
+            "cleaver",
+            "ball",
+            "other"
+          ]
+        },
+        "team": {
+          "$ref": "#/$defs/team"
+        },
+        "origin": {
+          "$ref": "#/$defs/vector"
+        },
+        "angles": {
+          "$ref": "#/$defs/vector"
+        },
+        "initial_velocity": {
+          "$ref": "#/$defs/vector"
+        },
+        "critical": {
+          "type": "boolean"
+        },
+        "deflected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "launcher": {
+          "type": "integer"
+        },
+        "owner": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entity",
+        "class",
+        "kind",
+        "team",
+        "origin",
+        "angles",
+        "initial_velocity",
+        "critical",
+        "deflected",
+        "launcher",
+        "owner"
+      ],
+      "additionalProperties": false
+    },
+    "control_point": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "owner": {
+          "$ref": "#/$defs/team"
+        },
+        "capping_team": {
+          "$ref": "#/$defs/team"
+        },
+        "progress": {
+          "$ref": "#/$defs/float"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "cappers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "position": {
+          "$ref": "#/$defs/vector"
+        }
+      },
+      "required": [
+        "index",
+        "owner",
+        "capping_team",
+        "progress",
+        "locked",
+        "visible",
+        "cappers",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "cart": {
+      "type": "object",
+      "properties": {
+        "entity": {
+          "type": "integer"
+        },
+        "team": {
+          "$ref": "#/$defs/team"
+        },
+        "progress": {
+          "$ref": "#/$defs/float"
+        },
+        "speed_level": {
+          "type": "integer"
+        },
+        "cappers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recede_time": {
+          "$ref": "#/$defs/float"
+        },
+        "origin": {
+          "$ref": "#/$defs/vector"
+        }
+      },
+      "required": [
+        "entity",
+        "team",
+        "progress",
+        "speed_level",
+        "cappers",
+        "recede_time",
+        "origin"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

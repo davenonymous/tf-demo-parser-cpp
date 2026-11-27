@@ -1,0 +1,18 @@
+# Never tracked: Claude's working files and instructions, ADRs, reports, deploy scripts
+.claude/
+CLAUDE.md
+**/docs/adr/
+HANDOVER.md
+PLAN.md
+depl.sh
+.cache/
+
+# Build directories and their outputs; dist/ holds the release archives and
+# the test data before it is uploaded
+/build/
+/dist/
+/out/
+CMakeUserPresets.json
+compile_commands.json
+target/
+__pycache__/

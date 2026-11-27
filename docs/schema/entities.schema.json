@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo entities",
+  "description": "One JSON object: the entities at the first frame at or after a demo tick.",
+  "type": "object",
+  "properties": {
+    "tick": {
+      "type": "integer"
+    },
+    "server_tick": {
+      "type": "integer"
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "serial": {
+            "type": "integer"
+          },
+          "class": {
+            "type": "string"
+          },
+          "in_pvs": {
+            "type": "boolean"
+          },
+          "props": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/value"
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "description": "[flat index, \"table.name\", value]"
+            }
+          }
+        },
+        "required": [
+          "index",
+          "serial",
+          "class",
+          "in_pvs",
+          "props"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "tick",
+    "server_tick",
+    "entities"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "value": {
+      "description": "An integer, a float (null when not finite), a vector of two or three floats, a string or an array of such values.",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "number",
+            "string"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/value"
+          }
+        }
+      ]
+    }
+  }
+}

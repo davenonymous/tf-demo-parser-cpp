@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tfdemo info",
+  "description": "One JSON object: header, server info (when the demo has one), frame and message counts, timing.",
+  "type": "object",
+  "properties": {
+    "header": {
+      "$ref": "#/$defs/header"
+    },
+    "server_info": {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "integer"
+        },
+        "hltv": {
+          "type": "boolean"
+        },
+        "dedicated": {
+          "type": "boolean"
+        },
+        "max_classes": {
+          "type": "integer"
+        },
+        "player_slot": {
+          "type": "integer"
+        },
+        "max_clients": {
+          "type": "integer"
+        },
+        "tick_interval": {
+          "$ref": "#/$defs/float"
+        },
+        "os": {
+          "type": "string",
+          "maxLength": 1
+        },
+        "game_dir": {
+          "type": "string"
+        },
+        "map": {
+          "type": "string"
+        },
+        "sky": {
+          "type": "string"
+        },
+        "host_name": {
+          "type": "string"
+        },
+        "replay": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocol",
+        "hltv",
+        "dedicated",
+        "max_classes",
+        "player_slot",
+        "max_clients",
+        "tick_interval",
+        "os",
+        "game_dir",
+        "map",
+        "sky",
+        "host_name",
+        "replay"
+      ],
+      "additionalProperties": false
+    },
+    "last_tick": {
+      "type": "integer"
+    },
+    "ended_with_stop": {
+      "type": "boolean"
+    },
+    "packets": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "Signon",
+          "Packet",
+          "SyncTick",
+          "ConsoleCmd",
+          "UserCmd",
+          "DataTables",
+          "Stop",
+          "StringTables"
+        ]
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "messages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "user_messages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "game_events": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "entity_changes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "temp_entities": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sounds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "server_classes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "string_tables": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "diagnostics": {
+      "type": "object",
+      "properties": {
+        "older_frame_deltas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_snapshot_tables": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "undecodable_user_messages": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dropped_sound_messages": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "older_frame_deltas",
+        "unknown_snapshot_tables",
+        "undecodable_user_messages",
+        "dropped_sound_messages"
+      ],
+      "additionalProperties": false
+    },
+    "parse_seconds": {
+      "type": "number",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "header",
+    "last_tick",
+    "ended_with_stop",
+    "packets",
+    "messages",
+    "user_messages",
+    "game_events",
+    "entity_changes",
+    "temp_entities",
+    "sounds",
+    "server_classes",
+    "string_tables",
+    "diagnostics",
+    "parse_seconds"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "float": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "A float; null when it is not finite."
+    },
+    "header": {
+      "type": "object",
+      "properties": {
+        "stamp": {
+          "type": "string"
+        },
+        "demo_protocol": {
+          "type": "integer"
+        },
+        "network_protocol": {
+          "type": "integer"
+        },
+        "server": {
+          "type": "string"
+        },
+        "client": {
+          "type": "string"
+        },
+        "map": {
+          "type": "string"
+        },
+        "game": {
+          "type": "string"
+        },
+        "duration": {
+          "$ref": "#/$defs/float"
+        },
+        "ticks": {
+          "type": "integer"
+        },
+        "frames": {
+          "type": "integer"
+        },
+        "signon_length": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stamp",
+        "demo_protocol",
+        "network_protocol",
+        "server",
+        "client",
+        "map",
+        "game",
+        "duration",
+        "ticks",
+        "frames",
+        "signon_length"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
