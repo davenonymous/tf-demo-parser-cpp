@@ -215,4 +215,4 @@ through Conan (`conan create .`, whose `test_package/` builds the same sources).
 | Release | Only for a `v*` tag, after every other job passed. See [CONTRIBUTING.md](../CONTRIBUTING.md#releases). |
 
 The test data is cached between runs, under a key made of its SHA-256, so that new test data is downloaded
-afresh. Every action is pinned to a commit; Dependabot updates the pins.
+afresh. Every action is pinned to a commit; Dependabot updates the pins, all in one weekly pull request.
