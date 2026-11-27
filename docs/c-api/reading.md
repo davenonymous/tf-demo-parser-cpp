@@ -74,8 +74,68 @@ Between steps you can read the parser's state:
 | `tfdemo_tick_interval(parser)` | Seconds per tick, 0 before the server info. |
 | `tfdemo_is_paused(parser)` | 1 while the game is paused. |
 | `tfdemo_ended_with_stop(parser)` | 1 once the demo ended with its `Stop` frame, 0 for a demo cut short. |
+| `tfdemo_last_frame_type(parser)` | The type of the frame the last step handled, a `tfdemo_frame_type`; -1 before the first. |
+| `tfdemo_last_frame_tick(parser)` | That frame's tick as sent; 0 before the first. |
+| `tfdemo_get_server_info(parser)` | The last server info, by value. |
+| `tfdemo_get_diagnostics(parser)` | The [diagnostics](../cpp/reading.md#diagnostics) counters, by value. |
 
 `callbacks` may be `NULL` in both functions.
+
+### Frames
+
+One step handles one frame. `tfdemo_last_frame_type` tells which: `TFDEMO_FRAME_SIGNON`, `_PACKET`,
+`_SYNC_TICK`, `_CONSOLE_CMD`, `_USER_CMD`, `_DATA_TABLES`, `_STOP` or `_STRING_TABLES`, the engine's `dem_*`
+numbers. `tfdemo_frame_type_name` gives the name the C++ API and `tfdemo info` use, such as `"Packet"`, and
+`NULL` for a number that is no frame type.
+
+`tfdemo_last_frame_tick` is the frame's tick as the demo has it. `tfdemo_demo_tick` is 0 for the signon
+frames; their own tick is the server's at the start of the recording. A step that fails, and the last step
+of a demo without a `Stop` frame (which finds no frame), leave both at the last frame handled completely.
+Inside a callback they are those of the frame being handled.
+
+This counts the frames by type and stops at the first `Packet` frame at or after a tick, as
+`tfdemo entities` does:
+
+```c
+int frames[9] = {0};
+int more = 1;
+while (more) {
+	if (tfdemo_step(parser, NULL, &more) != TFDEMO_OK) {
+		fprintf(stderr, "%s\n", tfdemo_last_error());
+		break;
+	}
+	/* The last step of a demo without a Stop frame finds no frame. */
+	if (more || tfdemo_ended_with_stop(parser)) {
+		frames[tfdemo_last_frame_type(parser)]++;
+	}
+	if (tfdemo_last_frame_type(parser) == TFDEMO_FRAME_PACKET && tfdemo_last_frame_tick(parser) >= 20000) {
+		break;
+	}
+}
+```
+
+### The server info and the diagnostics
+
+`tfdemo_get_server_info` returns a `tfdemo_server_info` with `present` 0 (and every field zero) before the
+demo's `svc_ServerInfo`. After it, the struct has the fields `tfdemo info` prints in `server_info`:
+`protocol`, `is_hltv`, `is_dedicated`, `max_classes`, `player_slot`, `max_clients`, `tick_interval`, `os`
+(`'l'`, `'w'` or `'m'`), `game_dir`, `map_name`, `sky_name`, `host_name` and `is_replay`. Its strings are
+valid until the next step.
+
+```c
+tfdemo_server_info info = tfdemo_get_server_info(parser);
+if (info.present) {
+	printf("%s on %s, %d clients, tick interval %g\n", info.host_name, info.map_name, info.max_clients,
+		info.tick_interval);
+}
+```
+
+```
+SourceTV on cp_process_f12, 25 clients, tick interval 0.015
+```
+
+`tfdemo_get_diagnostics` returns the four counters of things the engine tolerates and the parser went past:
+`older_frame_deltas`, `unknown_snapshot_tables`, `undecodable_user_messages` and `dropped_sound_messages`.
 
 ## Callbacks
 
@@ -95,6 +155,30 @@ Set the callbacks you need in a `tfdemo_callbacks` and leave the others `NULL`. 
 
 Inside a callback you may call every reading function of the parser, such as `tfdemo_get_entity` or
 `tfdemo_read_game_state`. Do not call `tfdemo_step`, `tfdemo_run` or `tfdemo_free` from a callback.
+
+### Net messages
+
+`tfdemo_callbacks` is frozen within 1.x, so the callback for net messages is set on the parser instead:
+
+```c
+static void on_message(void *user_data, const tfdemo_parser *parser, int32_t type, size_t bit_offset,
+	size_t bit_length) {
+	(void)parser;
+	(void)bit_offset;
+	(void)bit_length;
+	((int *)user_data)[type]++; /* int counts[64] */
+}
+
+tfdemo_set_on_message(parser, on_message, counts);
+```
+
+It is called for every net message of a `Signon` or `Packet` frame, before the parser applies it, with the
+message's type (the `net_*` or `svc_*` number) and where it lies in its frame's message data: its offset and
+length in bits, its type field included. `tfdemo_message_type_name` gives the name of a type, such as
+`"PacketEntities"`, the names `tfdemo info` counts by, and `NULL` for a number that is no message type.
+
+The callback applies to every later `tfdemo_step` and `tfdemo_run` of the parser until you set another; set
+`NULL` to turn it off. One set inside a callback applies from the next step on.
 
 ## Server classes and properties
 
@@ -119,8 +203,20 @@ Look them up once and reuse them; they are stable for a parse.
 
 ## Entities
 
-`tfdemo_get_entity(parser, index)` returns the entity at an index now, or `NULL`. In `on_entity` you get the
-entity directly. Read a property into a `tfdemo_prop_value`:
+`tfdemo_get_entity(parser, index)` returns the entity at an index now, or `NULL`. Every entity has an index
+below `TFDEMO_MAX_ENTITIES` (2048, the engine's `MAX_EDICTS`), so this visits all of them:
+
+```c
+int32_t index;
+for (index = 0; index < TFDEMO_MAX_ENTITIES; ++index) {
+	const tfdemo_entity *entity = tfdemo_get_entity(parser, index);
+	if (entity) {
+		printf("%d %s\n", index, tfdemo_class_name(parser, tfdemo_entity_class(entity)));
+	}
+}
+```
+
+In `on_entity` you get the entity directly. Read a property into a `tfdemo_prop_value`:
 
 ```c
 static void on_entity(void *user_data, const tfdemo_parser *parser, const tfdemo_entity *entity,
@@ -151,7 +247,7 @@ A `tfdemo_prop_value` has a `type` and the field for it:
 | `TFDEMO_PROP_VECTOR` | `vector[0..2]` |
 | `TFDEMO_PROP_VECTOR_XY` | `vector[0..1]` |
 | `TFDEMO_PROP_STRING` | `string_value`, `string_length` |
-| `TFDEMO_PROP_ARRAY` | `array_length`; read the elements with `tfdemo_entity_prop_element` |
+| `TFDEMO_PROP_ARRAY` | `array_length`; read the elements with `tfdemo_entity_prop_element` or `tfdemo_temp_entity_prop_element` |
 
 The entity functions:
 
@@ -171,7 +267,8 @@ update sent.
 ## Temp entities and sounds
 
 A temp entity has a class (`tfdemo_temp_entity_class`), a delay in seconds (`tfdemo_temp_entity_delay`) and
-properties, read with `tfdemo_temp_entity_prop` and `tfdemo_temp_entity_find_prop` like those of an entity.
+properties, read with `tfdemo_temp_entity_prop`, `tfdemo_temp_entity_find_prop` and
+`tfdemo_temp_entity_prop_element` like those of an entity.
 
 `on_sound` gets a `tfdemo_sound` struct: the `entity_index` it plays on, its `name` from the `soundprecache`
 table (`""` when unknown), `flags`, `channel`, `volume`, `sound_level`, `pitch`, `delay`, `origin` and
@@ -197,6 +294,7 @@ static void on_game_event(void *user_data, const tfdemo_parser *parser, const tf
 | `tfdemo_event_get_int`, `tfdemo_event_get_float` | The value, or the fallback you pass when the event has no such key or the key is a string. `tfdemo_event_get_int` also returns the fallback for a float no `int32_t` holds (NaN, an infinity or a number out of its range). |
 | `tfdemo_event_get_string(event, key)` | The string, `NULL` when the key is missing or not a string. |
 | `tfdemo_event_key_count`, `tfdemo_event_key_name`, `tfdemo_event_key_type` | The keys and their types, to list every value. |
+| `tfdemo_event_int_at`, `tfdemo_event_float_at`, `tfdemo_event_string_at` | The same values by key index, with the same fallbacks; an index out of range is a missing key. |
 
 To list every key, ask for the key count, names and types. `tfdemo_event_key_type` returns a
 `tfdemo_event_value_type`: `TFDEMO_EVENT_STRING`, `TFDEMO_EVENT_FLOAT`, `TFDEMO_EVENT_LONG`,
@@ -233,6 +331,10 @@ attacker           5
 damageamount       100
 ...
 ```
+
+An event may declare a key name twice. The by-name getters then give the first key of that name; the by-index
+getters (`tfdemo_event_int_at(event, key, fallback)` and its siblings) give each key's own value, as
+`tfdemo events` prints them. A `TFDEMO_EVENT_BOOL` key reads as an integer, 0 or 1.
 
 Events name players by user id. `tfdemo_player_by_user_id` gives the name ([Players](#players)).
 
@@ -355,6 +457,10 @@ The structs have the fields of the C++ types in [cpp/analysis.md](../cpp/analysi
 with these differences: `tfdemo_player_state` has no `active_weapon`, and `tfdemo_building_state` has no
 ammunition. A getter with an index out of range returns `TFDEMO_ERROR_ARGUMENT`.
 
+`tfdemo_game_state_world(state, min, max)` fills the bounds of the map, the world entity's `m_WorldMins` and
+`m_WorldMaxs` (zero without a world entity), as `tfdemo gamestate` prints them in `world_min` and
+`world_max`.
+
 The state is a copy. It stays valid after further steps and after `tfdemo_free` of the parser, until
 `tfdemo_game_state_free`.
 
@@ -389,10 +495,47 @@ for (i = 0; i < tfdemo_direct_hit_count(parser); ++i) {
 Users come by ascending user id. A `tfdemo_summary_user_info` has the user's ids, `name`, `steam_id`,
 `is_bot`, `team`, the player resource `scores` (with `support`), the scoreboard's `match_scores` and
 `round_scores`, and `scoreboard_sent`. [cpp/analysis.md](../cpp/analysis.md#scores-and-scoreboard-data) explains
-the two kinds of score.
+the two kinds of score. `tfdemo_summary_user_spawns(parser, index, spawns)` fills `int32_t spawns[10]` with how
+often the user at `index` spawned as each class, by class number (`spawns[1]` scout to `spawns[9]` engineer).
+
+The rest of the summary comes by count and index too:
+
+| List | Count | Getter | Struct |
+|---|---|---|---|
+| Chat lines | `tfdemo_summary_chat_count` | `tfdemo_summary_chat(parser, index, &chat, &tick)` | `tfdemo_chat` and its demo tick |
+| Deaths | `tfdemo_summary_death_count` | `tfdemo_summary_death` | `tfdemo_death_info` |
+| Rounds | `tfdemo_summary_round_count` | `tfdemo_summary_round` | `tfdemo_round_info` |
+| Pauses | `tfdemo_summary_pause_count` | `tfdemo_summary_pause` | `tfdemo_pause_info` |
+
+A chat line is the `tfdemo_chat` of [User messages and chat](#user-messages-and-chat). A death has its demo
+`tick`, the user ids of the `victim` and the `attacker` (0 for the world), `has_assister` and `assister`, the
+`weapon`, `custom_kill`, `death_flags` and `feign_death` (a Dead Ringer's fake death). A round has its
+`end_tick`, the `winner` (a team), the `win_reason` and its `length` in seconds; a pause the demo ticks
+`from` and `to`. `tfdemo_summary_start_tick` is the server tick of the first `NET_Tick`, and the summary's
+tick interval is `tfdemo_tick_interval`. Their strings are valid until the next step or `tfdemo_free`.
+
+```c
+tfdemo_death_info death;
+tfdemo_round_info round;
+for (i = 0; i < 3 && i < tfdemo_summary_death_count(parser); ++i) {
+	tfdemo_summary_death(parser, i, &death);
+	printf("tick %d: user %d killed user %d with %s\n", death.tick, death.attacker, death.victim, death.weapon);
+}
+for (i = 0; i < tfdemo_summary_round_count(parser); ++i) {
+	tfdemo_summary_round(parser, i, &round);
+	printf("round %zu: team %d won after %.0f seconds\n", i + 1, round.winner, round.length);
+}
+```
+
+```
+tick 29: user 5 killed user 13 with tf_projectile_pipe
+tick 47: user 9 killed user 5 with the_winger
+tick 266: user 8 killed user 3 with quake_rl
+round 1: team 2 won after 217 seconds
+round 2: team 2 won after 459 seconds
+...
+```
 
 The scores and the direct hits need entities: with `entities` off the scores stay zero and there are no
-direct hits. Without the `summary` option the counts are 0 and the getters return `TFDEMO_ERROR_STATE`.
-
-The C API has no access to the chat, deaths, rounds and pauses of the summary. Collect them with
-`on_user_message` and `on_game_event`, or run `tfdemo summary`.
+direct hits. Without the `summary` option the counts and `tfdemo_summary_start_tick` are 0 and the getters
+return `TFDEMO_ERROR_STATE`.

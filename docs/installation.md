@@ -82,7 +82,7 @@ simplest way to use it from CMake:
 ```cmake
 include(FetchContent)
 FetchContent_Declare(tfdemo
-  URL https://github.com/davenonymous/tf-demo-parser-cpp/releases/download/v1.0.0/tf-demo-parser-cpp-1.0.0.tar.gz
+  URL https://github.com/davenonymous/tf-demo-parser-cpp/releases/download/v1.1.0/tf-demo-parser-cpp-1.1.0.tar.gz
   URL_HASH SHA256=<the checksum from SHA256SUMS>)
 FetchContent_MakeAvailable(tfdemo)
 
@@ -166,7 +166,7 @@ cd tf-demo-parser-cpp
 conan create . --build=missing
 ```
 
-Then require `tfdemo/1.0.0` in your own recipe. The recipe has these options:
+Then require `tfdemo/1.1.0` in your own recipe. The recipe has these options:
 
 | Option | Default | Effect |
 |---|---|---|
@@ -219,7 +219,7 @@ headers have no export annotations.
 #include <tfdemo/version.hpp>
 
 static_assert(TFDEMO_VERSION_MAJOR == 1, "this code needs libtfdemo 1.x");
-std::printf("libtfdemo %s\n", TFDEMO_VERSION_STRING);   // "1.0.0"
+std::printf("libtfdemo %s\n", TFDEMO_VERSION_STRING);   // "1.1.0"
 ```
 
 The macros `TFDEMO_VERSION_MAJOR`, `TFDEMO_VERSION_MINOR`, `TFDEMO_VERSION_PATCH` and `TFDEMO_VERSION_STRING`

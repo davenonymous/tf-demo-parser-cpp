@@ -65,18 +65,17 @@ The tool prints a selection of what the library reads. For more, use the C++ API
 
 ## The C API
 
-The C API covers reading, the game state, the summary's users and direct hits, re-encoding, the pose splice
-and the entity encoder. It does not have:
+The C API covers reading (with the frame types, the net message types and the diagnostics), the game state,
+the match summary and direct hits, re-encoding, the pose splice and the entity encoder. It does not have:
 
 - anonymization;
 - a frame writer: an encoded entity message cannot be put into a demo from C (the pose splice and
   re-encoding write whole demos);
-- the callbacks `on_header`, `on_message`, `on_data_tables`, `on_string_table_created`, `on_game_event_list`
-  and `on_end`, and so no access to raw net messages, KeyValues or user commands. `tfdemo_callbacks` is
-  frozen within 1.x ([c-api/overview.md](c-api/overview.md#conventions)), so these can only come as new
-  functions in a 1.x release, or as fields in 2.0;
-- the diagnostics counters;
-- the summary's chat, deaths, rounds and pauses, and the users' spawn counts per class;
+- the callbacks `on_header`, `on_data_tables`, `on_string_table_created`, `on_game_event_list` and `on_end`,
+  and access to the contents of net messages, KeyValues and user commands: `tfdemo_set_on_message` tells only
+  a net message's type and where it lies. `tfdemo_callbacks` is frozen within 1.x
+  ([c-api/overview.md](c-api/overview.md#conventions)), so these can only come as new functions in a 1.x
+  release, or as fields in 2.0;
 - decoded user messages other than chat;
 - the writers of game events, user messages, string tables and `player_info_t`;
 - the players' active weapon and the buildings' ammunition in the game state.

@@ -10,7 +10,8 @@
  * - Objects passed to callbacks (events, entities, user messages) and the
  *   strings they return are valid until the callback returns.
  * - The header's strings are valid until the parser is freed; strings of
- *   classes, string tables and entities until the next step.
+ *   classes, string tables, entities and the server info until the next
+ *   step.
  * - Handles (parser, entity, event, message, game state, encoder, entity
  *   state, buffer) must not be NULL; NULL in a path, name or out pointer is
  *   TFDEMO_ERROR_ARGUMENT.
@@ -161,6 +162,79 @@ TFDEMO_API int tfdemo_is_paused(const tfdemo_parser *parser);
 /* 1 once the demo ended with its stop frame, 0 for a demo cut short. */
 TFDEMO_API int tfdemo_ended_with_stop(const tfdemo_parser *parser);
 
+/* The frame types, by the engine's dem_* numbers. */
+typedef enum tfdemo_frame_type {
+	TFDEMO_FRAME_SIGNON = 1,
+	TFDEMO_FRAME_PACKET = 2,
+	TFDEMO_FRAME_SYNC_TICK = 3,
+	TFDEMO_FRAME_CONSOLE_CMD = 4,
+	TFDEMO_FRAME_USER_CMD = 5,
+	TFDEMO_FRAME_DATA_TABLES = 6,
+	TFDEMO_FRAME_STOP = 7,
+	TFDEMO_FRAME_STRING_TABLES = 8
+} tfdemo_frame_type;
+
+/* The type (a tfdemo_frame_type) and the tick of the frame the last step
+ * handled; one step handles one frame. The tick is the frame's own, as
+ * sent: unlike tfdemo_demo_tick, the signon frames have the server's tick
+ * at the start of the recording. Before the first frame the type is -1 and
+ * the tick 0. A step that finds no further frame, and a step that fails,
+ * leave them at the last frame handled completely. Inside a callback they
+ * are those of the frame being handled. */
+TFDEMO_API int32_t tfdemo_last_frame_type(const tfdemo_parser *parser);
+TFDEMO_API int32_t tfdemo_last_frame_tick(const tfdemo_parser *parser);
+/* The name of a frame type ("Packet", "SyncTick", ...), NULL for a number
+ * that is none. */
+TFDEMO_API const char *tfdemo_frame_type_name(int32_t type);
+
+/* Calls fn for every net message of a Signon or Packet frame, before the
+ * parser applies it: its type (the net_* or svc_* number) and where it lies
+ * in its frame's message data, in bits from the start (its type field
+ * included). It applies to every later tfdemo_step and tfdemo_run on the
+ * parser until it is set again; fn NULL turns it off. */
+TFDEMO_API tfdemo_status tfdemo_set_on_message(tfdemo_parser *parser,
+	void (*fn)(void *user_data, const tfdemo_parser *parser, int32_t type, size_t bit_offset, size_t bit_length),
+	void *user_data);
+/* The name of a net message type ("NetTick", "PacketEntities", ...), NULL
+ * for a number that is none. */
+TFDEMO_API const char *tfdemo_message_type_name(int32_t type);
+
+/* The last svc_ServerInfo. */
+typedef struct tfdemo_server_info {
+	int present; /* 0 before the server info; every other field is zero then */
+	int32_t protocol;
+	int is_hltv;
+	int is_dedicated;
+	int32_t max_classes;
+	int32_t player_slot;
+	int32_t max_clients;
+	float tick_interval; /* seconds */
+	char os; /* 'l', 'w' or 'm' */
+	const char *game_dir;
+	const char *map_name;
+	const char *sky_name;
+	const char *host_name;
+	int is_replay;
+} tfdemo_server_info;
+
+/* Its strings are valid until the next step. */
+TFDEMO_API tfdemo_server_info tfdemo_get_server_info(const tfdemo_parser *parser);
+
+/* What the parser met that the engine tolerates and that did not stop it. */
+typedef struct tfdemo_diagnostics {
+	/* Entity deltas against an older frame than the last one (client demos). */
+	int32_t older_frame_deltas;
+	/* dem_stringtables snapshots of tables no message created. */
+	int32_t unknown_snapshot_tables;
+	/* User messages whose data did not fit the layout of their name; they
+	 * were passed on undecoded. */
+	int32_t undecodable_user_messages;
+	/* svc_Sounds messages whose sounds did not fill them; they were dropped. */
+	int32_t dropped_sound_messages;
+} tfdemo_diagnostics;
+
+TFDEMO_API tfdemo_diagnostics tfdemo_get_diagnostics(const tfdemo_parser *parser);
+
 /* ------------------------------------------------------- server classes */
 
 TFDEMO_API int32_t tfdemo_class_count(const tfdemo_parser *parser);
@@ -197,7 +271,12 @@ typedef struct tfdemo_prop_value {
 	size_t array_length; /* elements of an array, read with tfdemo_*_prop_element */
 } tfdemo_prop_value;
 
-/* The entity at an index now, NULL when there is none. */
+/* The number of entity indices (the engine's MAX_EDICTS): every entity has
+ * an index in [0, TFDEMO_MAX_ENTITIES). */
+#define TFDEMO_MAX_ENTITIES 2048
+
+/* The entity at an index now, NULL when there is none (also for an index
+ * outside [0, TFDEMO_MAX_ENTITIES)). */
 TFDEMO_API const tfdemo_entity *tfdemo_get_entity(const tfdemo_parser *parser, int32_t index);
 TFDEMO_API int32_t tfdemo_entity_index(const tfdemo_entity *entity);
 TFDEMO_API int32_t tfdemo_entity_serial(const tfdemo_entity *entity);
@@ -214,6 +293,8 @@ TFDEMO_API int32_t tfdemo_temp_entity_class(const tfdemo_temp_entity *temp_entit
 TFDEMO_API float tfdemo_temp_entity_delay(const tfdemo_temp_entity *temp_entity);
 TFDEMO_API tfdemo_status tfdemo_temp_entity_prop(
 	const tfdemo_temp_entity *temp_entity, int32_t prop, tfdemo_prop_value *out);
+TFDEMO_API tfdemo_status tfdemo_temp_entity_prop_element(
+	const tfdemo_temp_entity *temp_entity, int32_t prop, size_t element, tfdemo_prop_value *out);
 TFDEMO_API tfdemo_status tfdemo_temp_entity_find_prop(
 	const tfdemo_temp_entity *temp_entity, const char *table, const char *name, tfdemo_prop_value *out);
 
@@ -241,6 +322,12 @@ TFDEMO_API int32_t tfdemo_event_get_int(const tfdemo_game_event *event, const ch
 TFDEMO_API float tfdemo_event_get_float(const tfdemo_game_event *event, const char *key, float fallback);
 /* NULL when the key is missing or not a string. */
 TFDEMO_API const char *tfdemo_event_get_string(const tfdemo_game_event *event, const char *key);
+/* The same by key index (0 to tfdemo_event_key_count - 1), for events that
+ * repeat a key name (the by-name getters give its first key); an index out
+ * of range is a missing key. */
+TFDEMO_API int32_t tfdemo_event_int_at(const tfdemo_game_event *event, size_t key, int32_t fallback);
+TFDEMO_API float tfdemo_event_float_at(const tfdemo_game_event *event, size_t key, float fallback);
+TFDEMO_API const char *tfdemo_event_string_at(const tfdemo_game_event *event, size_t key);
 
 /* -------------------------------------------------------- user messages */
 
@@ -395,6 +482,9 @@ TFDEMO_API tfdemo_status tfdemo_game_state_control_point(
 	const tfdemo_game_state *state, size_t index, tfdemo_control_point_state *out);
 TFDEMO_API size_t tfdemo_game_state_cart_count(const tfdemo_game_state *state);
 TFDEMO_API tfdemo_status tfdemo_game_state_cart(const tfdemo_game_state *state, size_t index, tfdemo_cart_state *out);
+/* The bounds of the map (the world entity's m_WorldMins and m_WorldMaxs),
+ * zero without it. */
+TFDEMO_API tfdemo_status tfdemo_game_state_world(const tfdemo_game_state *state, float min[3], float max[3]);
 
 /* -------------------------------------------------------------- summary */
 
@@ -472,6 +562,52 @@ TFDEMO_API size_t tfdemo_summary_user_count(const tfdemo_parser *parser);
 TFDEMO_API tfdemo_status tfdemo_summary_user(const tfdemo_parser *parser, size_t index, tfdemo_summary_user_info *out);
 TFDEMO_API size_t tfdemo_direct_hit_count(const tfdemo_parser *parser);
 TFDEMO_API tfdemo_status tfdemo_direct_hit(const tfdemo_parser *parser, size_t index, tfdemo_direct_hit_info *out);
+/* How often the user at `index` spawned as each class, by class number
+ * (spawns[1] scout ... spawns[9] engineer; spawns[0] unknown). */
+TFDEMO_API tfdemo_status tfdemo_summary_user_spawns(const tfdemo_parser *parser, size_t index, int32_t spawns[10]);
+
+/* A player_death of the match. */
+typedef struct tfdemo_death_info {
+	int32_t tick; /* demo tick */
+	int32_t victim; /* user id */
+	int32_t attacker; /* user id, 0 for the world */
+	int has_assister;
+	int32_t assister; /* user id, 0 without */
+	const char *weapon;
+	int32_t custom_kill;
+	int32_t death_flags;
+	int feign_death; /* a Dead Ringer's fake death (TF_DEATH_FEIGN_DEATH of death_flags) */
+} tfdemo_death_info;
+
+/* A round of the match, at its end. */
+typedef struct tfdemo_round_info {
+	int32_t end_tick; /* demo tick */
+	int32_t winner; /* a team */
+	int32_t win_reason;
+	float length; /* seconds */
+} tfdemo_round_info;
+
+/* A pause of the match, in demo ticks. */
+typedef struct tfdemo_pause_info {
+	int32_t from;
+	int32_t to;
+} tfdemo_pause_info;
+
+/* The chat lines, deaths, rounds and pauses so far, with the same rules as
+ * the users; a chat line's tick (a demo tick) comes through `tick`. Their
+ * strings are valid until the next step or tfdemo_free. */
+TFDEMO_API size_t tfdemo_summary_chat_count(const tfdemo_parser *parser);
+TFDEMO_API tfdemo_status tfdemo_summary_chat(
+	const tfdemo_parser *parser, size_t index, tfdemo_chat *out, int32_t *tick);
+TFDEMO_API size_t tfdemo_summary_death_count(const tfdemo_parser *parser);
+TFDEMO_API tfdemo_status tfdemo_summary_death(const tfdemo_parser *parser, size_t index, tfdemo_death_info *out);
+TFDEMO_API size_t tfdemo_summary_round_count(const tfdemo_parser *parser);
+TFDEMO_API tfdemo_status tfdemo_summary_round(const tfdemo_parser *parser, size_t index, tfdemo_round_info *out);
+TFDEMO_API size_t tfdemo_summary_pause_count(const tfdemo_parser *parser);
+TFDEMO_API tfdemo_status tfdemo_summary_pause(const tfdemo_parser *parser, size_t index, tfdemo_pause_info *out);
+/* The server tick of the first NET_Tick, 0 before it and without the
+ * summary option. */
+TFDEMO_API int32_t tfdemo_summary_start_tick(const tfdemo_parser *parser);
 
 /* -------------------------------------------------------------- buffers */
 

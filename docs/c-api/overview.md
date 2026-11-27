@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
 ```
 
 ```
-map cp_process_f12, tfdemo 1.0.0
+map cp_process_f12, tfdemo 1.1.0
 tick 29: user 5 killed user 13 with tf_projectile_pipe
 tick 47: user 9 killed user 5 with the_winger
 ...
@@ -107,7 +107,7 @@ At run time the program needs the shared library: on the library path (`LD_LIBRA
 `DYLD_LIBRARY_PATH`), next to the program on Windows, or found through an rpath. The soname carries the major
 version (`libtfdemo.so.1`), so a program built against 1.x runs with every later 1.x.
 
-`tfdemo_version()` returns the version of the loaded library, such as `"1.0.0"`.
+`tfdemo_version()` returns the version of the loaded library, such as `"1.1.0"`.
 
 ## Conventions
 
@@ -118,6 +118,7 @@ version (`libtfdemo.so.1`), so a program built against 1.x runs with every later
   copied into structs you provide, such as `tfdemo_prop_value` or `tfdemo_player_state`.
 - **Callbacks.** A `tfdemo_callbacks` struct holds function pointers and a `user_data` pointer that is passed
   to each of them. Any pointer may be `NULL`, and the struct itself may be `NULL` when you need no callbacks.
+  The net message callback is set on the parser with `tfdemo_set_on_message` instead.
 - **Indices.** Classes, properties, entities and string tables are addressed by number, as in the C++ API.
   Lookups by name return -1 when nothing matches.
 - **NULL arguments.** Handles must not be `NULL`. A `NULL` path, name or out pointer is
@@ -170,9 +171,9 @@ What you get from the library is valid for a limited time. The rules:
 |---|---|
 | Objects passed to a callback (events, entities, user messages, temp entities, sounds), and their strings | The callback returns. |
 | The header's strings (`tfdemo_get_header`) | `tfdemo_free` of the parser. |
-| Classes, their properties' names, entities from `tfdemo_get_entity`, string table entries | The next `tfdemo_step` or `tfdemo_run`. |
+| Classes, their properties' names, entities from `tfdemo_get_entity`, string table entries, the server info's strings | The next `tfdemo_step` or `tfdemo_run`. |
 | A player's strings (`tfdemo_player_by_entity`, `tfdemo_player_by_user_id`) | The next player lookup on the same parser. |
-| A summary user's strings (`tfdemo_summary_user`) | The next step or `tfdemo_free`. |
+| The strings of the summary (`tfdemo_summary_user`, `tfdemo_summary_chat`, `tfdemo_summary_death`) | The next step or `tfdemo_free`. |
 | A `tfdemo_game_state` and its strings | `tfdemo_game_state_free`. It is a copy and outlives the parser. |
 | A `tfdemo_encoder` and a `tfdemo_state` | Their `_free`. Both share the parser's server classes, keep them, and outlive the parser. |
 | A `tfdemo_buffer` | `tfdemo_buffer_free`. It outlives everything else. |
