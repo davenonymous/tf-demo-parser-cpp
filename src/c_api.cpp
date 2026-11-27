@@ -7,15 +7,20 @@
 #include "tfdemo/version.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "tfdemo/encoder.hpp"
 #include "tfdemo/gamestate.hpp"
@@ -32,6 +37,19 @@ struct ParserSummary {
 	DirectHitAnalyser direct_hits;
 };
 
+// The type and tick of a frame the parser handled; type -1 before the first.
+struct FrameSeen {
+	std::int32_t type = -1;
+	DemoTick tick = 0;
+};
+
+// The callback tfdemo_set_on_message set, for every later step.
+struct MessageCallback {
+	void (*fn)(
+		void *user_data, const tfdemo_parser *parser, int32_t type, size_t bit_offset, size_t bit_length) = nullptr;
+	void *user_data = nullptr;
+};
+
 struct tfdemo_parser {
 	DemoParser parser;
 	// Storage for strings handed out by the player lookups.
@@ -39,6 +57,8 @@ struct tfdemo_parser {
 	std::string player_steam_id;
 	// Only with the summary option.
 	std::unique_ptr<ParserSummary> summary;
+	FrameSeen last_frame;
+	MessageCallback on_message;
 };
 
 struct tfdemo_game_state {
@@ -69,6 +89,20 @@ struct tfdemo_user_message {
 namespace {
 
 thread_local std::string g_last_error;
+
+// What to_string(MessageType) gives for a number that is no message type.
+constexpr const char *kUnknownMessageType = "Unknown";
+
+static_assert(TFDEMO_FRAME_SIGNON == static_cast<int>(PacketType::Signon) &&
+		TFDEMO_FRAME_PACKET == static_cast<int>(PacketType::Packet) &&
+		TFDEMO_FRAME_SYNC_TICK == static_cast<int>(PacketType::SyncTick) &&
+		TFDEMO_FRAME_CONSOLE_CMD == static_cast<int>(PacketType::ConsoleCmd) &&
+		TFDEMO_FRAME_USER_CMD == static_cast<int>(PacketType::UserCmd) &&
+		TFDEMO_FRAME_DATA_TABLES == static_cast<int>(PacketType::DataTables) &&
+		TFDEMO_FRAME_STOP == static_cast<int>(PacketType::Stop) &&
+		TFDEMO_FRAME_STRING_TABLES == static_cast<int>(PacketType::StringTables),
+	"tfdemo_frame_type has the numbers of PacketType");
+static_assert(TFDEMO_MAX_ENTITIES == kMaxEdicts, "TFDEMO_MAX_ENTITIES is the engine's MAX_EDICTS");
 
 // A wrong argument found inside a guarded body: TFDEMO_ERROR_ARGUMENT.
 class ArgumentError : public std::runtime_error {
@@ -270,16 +304,26 @@ tfdemo_status fill_player(tfdemo_parser *parser, const std::optional<PlayerInfo>
 	return TFDEMO_OK;
 }
 
-// The callbacks of the C API as a DemoHandler.
+// The callbacks of the C API as a DemoHandler. It also records the frame
+// being handled as the parser's last frame (the step puts the one before
+// back when it fails).
 class CallbackHandler : public DemoHandler {
 public:
-	CallbackHandler(const tfdemo_parser *parser, const tfdemo_callbacks &callbacks)
-		: parser_(parser), callbacks_(callbacks) {}
+	CallbackHandler(tfdemo_parser &parser, const tfdemo_callbacks &callbacks)
+		: parser_(&parser), callbacks_(callbacks), on_message_(parser.on_message) {}
 
 	void on_packet(const ParserState &, const Packet &packet) override {
+		parser_->last_frame = FrameSeen{static_cast<std::int32_t>(packet.type), packet.tick};
 		const auto *command = std::get_if<ConsoleCmdPacket>(&packet.body);
 		if (command && callbacks_.on_console_command) {
 			callbacks_.on_console_command(callbacks_.user_data, parser_, command->command.c_str());
+		}
+	}
+
+	void on_message(const ParserState &, const Message &message, const MessageSpan &span) override {
+		if (on_message_.fn) {
+			on_message_.fn(on_message_.user_data, parser_, static_cast<std::int32_t>(message_type(message)), span.begin,
+				span.end - span.begin);
 		}
 	}
 
@@ -340,18 +384,20 @@ public:
 	}
 
 private:
-	const tfdemo_parser *parser_;
+	tfdemo_parser *parser_;
 	tfdemo_callbacks callbacks_;
+	MessageCallback on_message_;
 };
 
 const tfdemo_callbacks kNoCallbacks{};
 
 tfdemo_status fill_chat(const tfdemo_user_message *message, tfdemo_chat *out);
+void fill_chat_line(const ChatLine &line, tfdemo_chat *out) noexcept;
 
 tfdemo_parser *new_parser(DemoFile demo, const tfdemo_options *options) {
 	const bool wants_summary = options && options->summary != 0;
 	return new tfdemo_parser{DemoParser(std::move(demo), options_of(options)), {}, {},
-		wants_summary ? std::make_unique<ParserSummary>() : nullptr};
+		wants_summary ? std::make_unique<ParserSummary>() : nullptr, {}, {}};
 }
 
 // The summary's analysers (when the parser has them), then the callbacks,
@@ -364,6 +410,18 @@ HandlerList handlers_of(tfdemo_parser &parser, DemoHandler &callbacks) {
 	}
 	handlers.add(callbacks);
 	return handlers;
+}
+
+// Handles the next frame; when that fails, the last frame is the one
+// handled completely before it again.
+bool step_frame(tfdemo_parser &parser, DemoHandler &handlers) {
+	const FrameSeen before = parser.last_frame;
+	try {
+		return parser.parser.step(handlers);
+	} catch (...) {
+		parser.last_frame = before;
+		throw;
+	}
 }
 
 tfdemo_player_scores player_scores_of(const PlayerScores &s) noexcept {
@@ -381,6 +439,46 @@ void copy_vector(const Vector &vector, float out[3]) noexcept {
 	out[0] = vector.x;
 	out[1] = vector.y;
 	out[2] = vector.z;
+}
+
+// The value of an event's key by index, nullptr for an index out of range.
+const GameEventValue *event_value_at(const tfdemo_game_event *event, std::size_t key) noexcept {
+	const auto &values = event_of(event)->values;
+	return key < values.size() ? &values[key] : nullptr;
+}
+
+// A value converted as GameEvent::get_int converts it; nothing for a string
+// and for a float no int32_t holds, which get_int refuses.
+std::optional<std::int32_t> int_of(const GameEventValue &value) noexcept {
+	if (const auto *number = std::get_if<std::int32_t>(&value)) {
+		return *number;
+	}
+	if (const auto *flag = std::get_if<bool>(&value)) {
+		return *flag ? 1 : 0;
+	}
+	const auto *real = std::get_if<float>(&value);
+	if (!real || !std::isfinite(*real) || *real < -2147483648.0f || *real >= 2147483648.0f) {
+		return std::nullopt;
+	}
+	return static_cast<std::int32_t>(*real);
+}
+
+// The ParserSummary's match summary; a ParseError of kind State without the
+// summary option.
+const MatchSummary &summary_of(const tfdemo_parser *parser) {
+	if (!parser->summary) {
+		fail(ErrorKind::State, "the parser was opened without the summary option");
+	}
+	return parser->summary->match.summary();
+}
+
+// An element of a summary list; ArgumentError for an index out of range.
+template <typename T>
+const T &summary_element(const std::vector<T> &list, std::size_t index, const char *what) {
+	if (index >= list.size()) {
+		argument_error(std::string(what) + " index out of range");
+	}
+	return list[index];
 }
 
 }  // namespace
@@ -427,9 +525,9 @@ tfdemo_status tfdemo_step(tfdemo_parser *parser, const tfdemo_callbacks *callbac
 		return failed(TFDEMO_ERROR_ARGUMENT, "no parser");
 	}
 	return guarded([&] {
-		CallbackHandler handler(parser, callbacks ? *callbacks : kNoCallbacks);
+		CallbackHandler handler(*parser, callbacks ? *callbacks : kNoCallbacks);
 		HandlerList handlers = handlers_of(*parser, handler);
-		const bool next = parser->parser.step(handlers);
+		const bool next = step_frame(*parser, handlers);
 		if (more) {
 			*more = next ? 1 : 0;
 		}
@@ -441,9 +539,10 @@ tfdemo_status tfdemo_run(tfdemo_parser *parser, const tfdemo_callbacks *callback
 		return failed(TFDEMO_ERROR_ARGUMENT, "no parser");
 	}
 	return guarded([&] {
-		CallbackHandler handler(parser, callbacks ? *callbacks : kNoCallbacks);
+		CallbackHandler handler(*parser, callbacks ? *callbacks : kNoCallbacks);
 		HandlerList handlers = handlers_of(*parser, handler);
-		parser->parser.run(handlers);
+		while (step_frame(*parser, handlers)) {
+		}
 	});
 }
 
@@ -452,6 +551,51 @@ int32_t tfdemo_server_tick(const tfdemo_parser *parser) { return parser->parser.
 float tfdemo_tick_interval(const tfdemo_parser *parser) { return parser->parser.state().tick_interval(); }
 int tfdemo_is_paused(const tfdemo_parser *parser) { return parser->parser.state().paused() ? 1 : 0; }
 int tfdemo_ended_with_stop(const tfdemo_parser *parser) { return parser->parser.ended_with_stop() ? 1 : 0; }
+
+int32_t tfdemo_last_frame_type(const tfdemo_parser *parser) { return parser->last_frame.type; }
+int32_t tfdemo_last_frame_tick(const tfdemo_parser *parser) { return parser->last_frame.tick; }
+
+const char *tfdemo_frame_type_name(int32_t type) {
+	if (type < TFDEMO_FRAME_SIGNON || type > TFDEMO_FRAME_STRING_TABLES) {
+		return nullptr;
+	}
+	return to_string(static_cast<PacketType>(type));
+}
+
+tfdemo_status tfdemo_set_on_message(tfdemo_parser *parser,
+	void (*fn)(void *user_data, const tfdemo_parser *parser, int32_t type, size_t bit_offset, size_t bit_length),
+	void *user_data) {
+	if (!parser) {
+		return failed(TFDEMO_ERROR_ARGUMENT, "no parser");
+	}
+	g_last_error.clear();
+	parser->on_message = MessageCallback{fn, user_data};
+	return TFDEMO_OK;
+}
+
+const char *tfdemo_message_type_name(int32_t type) {
+	if (type < 0 || type > static_cast<int32_t>(MessageType::SetPauseTimed)) {
+		return nullptr;
+	}
+	const char *name = to_string(static_cast<MessageType>(type));
+	return std::strcmp(name, kUnknownMessageType) == 0 ? nullptr : name;
+}
+
+tfdemo_server_info tfdemo_get_server_info(const tfdemo_parser *parser) {
+	const std::optional<ServerInfoMessage> &info = parser->parser.state().server_info();
+	if (!info) {
+		return tfdemo_server_info{};
+	}
+	return tfdemo_server_info{1, info->protocol, info->is_hltv, info->is_dedicated, info->max_classes,
+		info->player_slot, info->max_clients, info->tick_interval, info->os, info->game_dir.c_str(),
+		info->map_name.c_str(), info->sky_name.c_str(), info->host_name.c_str(), info->is_replay};
+}
+
+tfdemo_diagnostics tfdemo_get_diagnostics(const tfdemo_parser *parser) {
+	const Diagnostics &d = parser->parser.state().diagnostics();
+	return tfdemo_diagnostics{
+		d.older_frame_deltas, d.unknown_snapshot_tables, d.undecodable_user_messages, d.dropped_sound_messages};
+}
 
 int32_t tfdemo_class_count(const tfdemo_parser *parser) {
 	return static_cast<int32_t>(parser->parser.state().send_tables().classes().size());
@@ -546,6 +690,12 @@ tfdemo_status tfdemo_temp_entity_prop(const tfdemo_temp_entity *temp_entity, int
 	return guarded_status([&] { return fill_prop(temp_entity_of(temp_entity)->props, prop, out); });
 }
 
+tfdemo_status tfdemo_temp_entity_prop_element(
+	const tfdemo_temp_entity *temp_entity, int32_t prop, size_t element, tfdemo_prop_value *out) {
+	clear_out(out);
+	return guarded_status([&] { return fill_element(temp_entity_of(temp_entity)->props, prop, element, out); });
+}
+
 tfdemo_status tfdemo_temp_entity_find_prop(
 	const tfdemo_temp_entity *temp_entity, const char *table, const char *name, tfdemo_prop_value *out) {
 	clear_out(out);
@@ -603,6 +753,29 @@ const char *tfdemo_event_get_string(const tfdemo_game_event *event, const char *
 	return text ? text->c_str() : nullptr;
 }
 
+int32_t tfdemo_event_int_at(const tfdemo_game_event *event, size_t key, int32_t fallback) {
+	const GameEventValue *value = event_value_at(event, key);
+	return value ? int_of(*value).value_or(fallback) : fallback;
+}
+
+float tfdemo_event_float_at(const tfdemo_game_event *event, size_t key, float fallback) {
+	const GameEventValue *value = event_value_at(event, key);
+	if (!value) {
+		return fallback;
+	}
+	if (const auto *real = std::get_if<float>(value)) {
+		return *real;
+	}
+	const std::optional<std::int32_t> number = int_of(*value);
+	return number ? static_cast<float>(*number) : fallback;
+}
+
+const char *tfdemo_event_string_at(const tfdemo_game_event *event, size_t key) {
+	const GameEventValue *value = event_value_at(event, key);
+	const auto *text = value ? std::get_if<std::string>(value) : nullptr;
+	return text ? text->c_str() : nullptr;
+}
+
 int32_t tfdemo_user_message_type(const tfdemo_user_message *message) { return message->message->type; }
 
 const char *tfdemo_user_message_name(const tfdemo_user_message *message) { return message->message->name.c_str(); }
@@ -649,6 +822,13 @@ const char *kind_text(const ChatLine &line) {
 	return "";
 }
 
+void fill_chat_line(const ChatLine &line, tfdemo_chat *out) noexcept {
+	out->client = line.client;
+	out->kind = kind_text(line);
+	out->sender = line.sender.c_str();
+	out->text = line.text.c_str();
+}
+
 tfdemo_status fill_chat(const tfdemo_user_message *message, tfdemo_chat *out) {
 	auto *view = const_cast<tfdemo_user_message *>(message);
 	std::optional<ChatLine> line = chat_line(*view->message);
@@ -656,10 +836,7 @@ tfdemo_status fill_chat(const tfdemo_user_message *message, tfdemo_chat *out) {
 		return failed(TFDEMO_ERROR_STATE, "user message " + view->message->name + " is no chat line");
 	}
 	view->chat = std::move(*line);
-	out->client = view->chat.client;
-	out->kind = kind_text(view->chat);
-	out->sender = view->chat.sender.c_str();
-	out->text = view->chat.text.c_str();
+	fill_chat_line(view->chat, out);
 	return TFDEMO_OK;
 }
 
@@ -804,22 +981,23 @@ tfdemo_status tfdemo_summary_user(const tfdemo_parser *parser, size_t index, tfd
 	if (!parser->summary) {
 		return failed(TFDEMO_ERROR_STATE, "the parser was opened without the summary option");
 	}
-	const auto &users = parser->summary->match.summary().users;
-	if (!out || index >= users.size()) {
-		return failed(TFDEMO_ERROR_ARGUMENT, "summary user index out of range");
-	}
-	const MatchUser &user = std::next(users.begin(), static_cast<std::ptrdiff_t>(index))->second;
-	out->user_id = user.user_id;
-	out->entity_index = user.entity_index;
-	out->name = user.name.c_str();
-	out->steam_id = user.steam_id.c_str();
-	out->is_bot = user.is_bot;
-	out->team = static_cast<int32_t>(user.team);
-	out->scores = player_scores_of(user.scores);
-	out->match_scores = score_data_of(user.match_scores);
-	out->round_scores = score_data_of(user.round_scores);
-	out->scoreboard_sent = user.scoreboard_sent;
-	return TFDEMO_OK;
+	return guarded([&] {
+		const auto &users = parser->summary->match.summary().users;
+		if (!out || index >= users.size()) {
+			argument_error("summary user index out of range");
+		}
+		const MatchUser &user = std::next(users.begin(), static_cast<std::ptrdiff_t>(index))->second;
+		out->user_id = user.user_id;
+		out->entity_index = user.entity_index;
+		out->name = user.name.c_str();
+		out->steam_id = user.steam_id.c_str();
+		out->is_bot = user.is_bot;
+		out->team = static_cast<int32_t>(user.team);
+		out->scores = player_scores_of(user.scores);
+		out->match_scores = score_data_of(user.match_scores);
+		out->round_scores = score_data_of(user.round_scores);
+		out->scoreboard_sent = user.scoreboard_sent;
+	});
 }
 
 size_t tfdemo_direct_hit_count(const tfdemo_parser *parser) {
@@ -831,14 +1009,104 @@ tfdemo_status tfdemo_direct_hit(const tfdemo_parser *parser, size_t index, tfdem
 	if (!parser->summary) {
 		return failed(TFDEMO_ERROR_STATE, "the parser was opened without the summary option");
 	}
-	const auto &hits = parser->summary->direct_hits.hits();
-	if (!out || index >= hits.size()) {
-		return failed(TFDEMO_ERROR_ARGUMENT, "direct hit index out of range");
+	return guarded([&] {
+		const auto &hits = parser->summary->direct_hits.hits();
+		if (!out || index >= hits.size()) {
+			argument_error("direct hit index out of range");
+		}
+		const DirectHit &hit = hits[index];
+		*out = tfdemo_direct_hit_info{hit.tick, hit.victim, hit.attacker, hit.victim_user_id, hit.attacker_user_id,
+			static_cast<int32_t>(hit.kind), hit.critical, hit.damage};
+	});
+}
+
+tfdemo_status tfdemo_summary_user_spawns(const tfdemo_parser *parser, size_t index, int32_t spawns[10]) {
+	if (spawns) {
+		std::fill_n(spawns, std::tuple_size_v<decltype(MatchUser::spawns)>, 0);
 	}
-	const DirectHit &hit = hits[index];
-	*out = tfdemo_direct_hit_info{hit.tick, hit.victim, hit.attacker, hit.victim_user_id, hit.attacker_user_id,
-		static_cast<int32_t>(hit.kind), hit.critical, hit.damage};
-	return TFDEMO_OK;
+	return guarded([&] {
+		const auto &users = summary_of(parser).users;
+		if (!spawns) {
+			argument_error("no spawns to fill");
+		}
+		if (index >= users.size()) {
+			argument_error("summary user index out of range");
+		}
+		const MatchUser &user = std::next(users.begin(), static_cast<std::ptrdiff_t>(index))->second;
+		std::copy(user.spawns.begin(), user.spawns.end(), spawns);
+	});
+}
+
+size_t tfdemo_summary_chat_count(const tfdemo_parser *parser) {
+	return parser->summary ? parser->summary->match.summary().chat.size() : 0;
+}
+
+tfdemo_status tfdemo_summary_chat(const tfdemo_parser *parser, size_t index, tfdemo_chat *out, int32_t *tick) {
+	clear_out(out);
+	clear_out(tick);
+	return guarded([&] {
+		const MatchSummary &summary = summary_of(parser);
+		if (!out || !tick) {
+			argument_error("out and tick are required");
+		}
+		const ChatMessage &chat = summary_element(summary.chat, index, "summary chat");
+		fill_chat_line(chat, out);
+		*tick = chat.tick;
+	});
+}
+
+size_t tfdemo_summary_death_count(const tfdemo_parser *parser) {
+	return parser->summary ? parser->summary->match.summary().deaths.size() : 0;
+}
+
+tfdemo_status tfdemo_summary_death(const tfdemo_parser *parser, size_t index, tfdemo_death_info *out) {
+	clear_out(out);
+	return guarded([&] {
+		const MatchSummary &summary = summary_of(parser);
+		if (!out) {
+			argument_error("no death to fill");
+		}
+		const Death &death = summary_element(summary.deaths, index, "summary death");
+		*out = tfdemo_death_info{death.tick, death.victim, death.attacker, death.assister.has_value(),
+			death.assister.value_or(0), death.weapon.c_str(), death.custom_kill, death.death_flags,
+			death.feign_death()};
+	});
+}
+
+size_t tfdemo_summary_round_count(const tfdemo_parser *parser) {
+	return parser->summary ? parser->summary->match.summary().rounds.size() : 0;
+}
+
+tfdemo_status tfdemo_summary_round(const tfdemo_parser *parser, size_t index, tfdemo_round_info *out) {
+	clear_out(out);
+	return guarded([&] {
+		const MatchSummary &summary = summary_of(parser);
+		if (!out) {
+			argument_error("no round to fill");
+		}
+		const RoundResult &round = summary_element(summary.rounds, index, "summary round");
+		*out = tfdemo_round_info{round.end_tick, static_cast<int32_t>(round.winner), round.win_reason, round.length};
+	});
+}
+
+size_t tfdemo_summary_pause_count(const tfdemo_parser *parser) {
+	return parser->summary ? parser->summary->match.summary().pauses.size() : 0;
+}
+
+tfdemo_status tfdemo_summary_pause(const tfdemo_parser *parser, size_t index, tfdemo_pause_info *out) {
+	clear_out(out);
+	return guarded([&] {
+		const MatchSummary &summary = summary_of(parser);
+		if (!out) {
+			argument_error("no pause to fill");
+		}
+		const Pause &pause = summary_element(summary.pauses, index, "summary pause");
+		*out = tfdemo_pause_info{pause.from, pause.to};
+	});
+}
+
+int32_t tfdemo_summary_start_tick(const tfdemo_parser *parser) {
+	return parser->summary ? parser->summary->match.summary().start_tick : 0;
 }
 
 size_t tfdemo_game_state_projectile_count(const tfdemo_game_state *state) { return state->state.projectiles.size(); }
@@ -900,6 +1168,20 @@ tfdemo_status tfdemo_game_state_cart(const tfdemo_game_state *state, size_t inde
 	out->cappers = c.cappers;
 	out->recede_time = c.recede_time;
 	copy_vector(c.origin, out->origin);
+	return TFDEMO_OK;
+}
+
+tfdemo_status tfdemo_game_state_world(const tfdemo_game_state *state, float min[3], float max[3]) {
+	for (float *bound : {min, max}) {
+		if (bound) {
+			std::fill_n(bound, 3, 0.0f);
+		}
+	}
+	if (!min || !max) {
+		return failed(TFDEMO_ERROR_ARGUMENT, "min and max are required");
+	}
+	copy_vector(state->state.world_min, min);
+	copy_vector(state->state.world_max, max);
 	return TFDEMO_OK;
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "tfdemo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Reads and writes Team Fortress 2 demo files: a C++17 library without dependencies and a C API.",
   "homepage": "https://github.com/davenonymous/tf-demo-parser-cpp",
   "license": "MIT",
