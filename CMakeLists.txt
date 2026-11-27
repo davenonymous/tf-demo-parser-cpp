@@ -59,6 +59,16 @@ elseif(MSVC)
   endif()
 endif()
 
+# 32-bit x86 GCC and Clang do float math on the x87 unit by default, whose
+# 80-bit intermediates give other bits than the engine (bit normals, coords).
+# SSE2 math gives the same bits on every platform; consumers get it too, so
+# that the float code inline in the headers agrees with the library.
+set(TFDEMO_FLOAT_MATH_FLAGS "")
+if(CMAKE_SIZEOF_VOID_P EQUAL 4 AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86|i[3-6]86|AMD64|x86_64)$"
+   AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set(TFDEMO_FLOAT_MATH_FLAGS -msse2 -mfpmath=sse)
+endif()
+
 file(GLOB TFDEMO_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/*.cpp)
 list(FILTER TFDEMO_SOURCES EXCLUDE REGEX ".*/c_api\\.cpp$")
 
@@ -70,6 +80,7 @@ target_include_directories(tfdemo PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(tfdemo PRIVATE ${TFDEMO_WARNINGS})
+target_compile_options(tfdemo PUBLIC ${TFDEMO_FLOAT_MATH_FLAGS})
 set_target_properties(tfdemo PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   VERSION ${PROJECT_VERSION}
@@ -95,6 +106,7 @@ if(TFDEMO_BUILD_C_API)
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
   target_compile_definitions(tfdemo_c PRIVATE TFDEMO_BUILDING_C_API)
   target_compile_options(tfdemo_c PRIVATE ${TFDEMO_WARNINGS})
+  target_compile_options(tfdemo_c PUBLIC ${TFDEMO_FLOAT_MATH_FLAGS})
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_options(tfdemo_c PRIVATE "-Wl,--version-script=${PROJECT_SOURCE_DIR}/src/c_api.map")
     set_property(TARGET tfdemo_c APPEND PROPERTY LINK_DEPENDS ${PROJECT_SOURCE_DIR}/src/c_api.map)
@@ -162,6 +174,10 @@ if(TFDEMO_INSTALL)
     set(TFDEMO_PC_PREFIX "\${pcfiledir}/${pc_up}")
     set(TFDEMO_PC_LIBDIR "\${prefix}/${CMAKE_INSTALL_LIBDIR}")
     set(TFDEMO_PC_INCLUDEDIR "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
+  endif()
+  list(JOIN TFDEMO_FLOAT_MATH_FLAGS " " TFDEMO_PC_CFLAGS)
+  if(TFDEMO_PC_CFLAGS)
+    string(PREPEND TFDEMO_PC_CFLAGS " ")
   endif()
   configure_file(cmake/tfdemo-cpp.pc.in ${PROJECT_BINARY_DIR}/tfdemo-cpp.pc @ONLY)
   install(FILES ${PROJECT_BINARY_DIR}/tfdemo-cpp.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
