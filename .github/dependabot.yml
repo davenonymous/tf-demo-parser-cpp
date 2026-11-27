@@ -1,7 +1,11 @@
-# Weekly updates of the GitHub Actions the workflows use.
+# Weekly updates of the GitHub Actions the workflows use, all in one pull
+# request, so that CI runs once for them.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
